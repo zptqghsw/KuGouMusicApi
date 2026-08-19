@@ -165,6 +165,8 @@
 136. [`获取已购专辑`](#获取已购专辑)
 137. [`上传音乐到云盘`](#上传音乐到云盘)
 138. [`获取听歌等级信息`](#获取听歌等级信息)
+139. [`编辑内容黑名单`](#编辑内容黑名单)
+140. [`获取内容黑名单`](#获取内容黑名单)
 
 ### 安装
 
@@ -273,6 +275,8 @@ $ set HOST=127.0.0.1 && npm run dev
 
 #### 更新记录
 
+26-08-17：添加 `编辑内容黑名单`、`获取内容黑名单` 接口
+
 26-08-15：添加 `一起听（音乐室/众乐房）` 接口
 
 26-08-14：`获取社区音效` 接口支持 `sort` 参数排序
@@ -369,54 +373,21 @@ $ set HOST=127.0.0.1 && npm run dev
 
 > ⚠️ 前置条件：需要 `platform=lite`（概念版）模式 + 概念版登录态，`userid`/`token` 需通过 cookie 传递（rmservice 系接口的 userid 必须是数字）
 
-**必选参数：**
+一起听按领域拆为 5 个接口，使用 `operation` 选择领域内操作：
 
-`action`: 操作类型，可选值如下
+| 能力 | 路由 |
+| --- | --- |
+| 自习室 | `/listen/together/study`：`list/detail/members/configure/sync_player/playlist/request_song` |
+| 众乐房 | `/listen/together/music`：`list/detail/members/initialize/sync_player/playlist/order_song/song_order_list/music_add/remove_song` |
+| 通用房间生命周期 | `/listen/together/room`：`create/join/heartbeat/status/leave/dismiss/check_minor` |
+| 聊天 | `/listen/together/chat`：`send/history` |
+| 发现与频道 | `/listen/together/discovery`：`channel_search` 等公开发现能力 |
 
-**查询类：**
-
-- `room_list`: 房间列表（按标签），支持 `page`、`pagesize`、`sort`、`tag_id`
-- `room_detail`: 房间详情，需传 `room_id`
-- `member_list`: 房间成员列表，需传 `room_id`，`member_type`（1 在线 / 2 全部）
-- `kugroup_square`: 酷群广场
-- `genting_square`: 歌厅广场
-- `kugroup_streamer_list`: 酷群主播列表
-- `genting_streamer_list`: 歌厅主播列表
-- `recent_room_dynamic`: 用户最近房间动态（需登录）
-- `privilege`: 特权详情（需登录）
-- `genting_recommend`: 歌厅推荐（需登录）
-- `channel_search`: 频道搜索，需传 `keyword`
-- `check_minor`: 未成年人检测（`make_room` 前置）
-
-**房间生命周期：**
-
-- `create`: 创建房间（仅房主）
-- `join`: 加入房间，需传 `room_id`
-- `heartbeat`: 房间心跳（建议 60s 间隔）
-- `get_status`: 用户房间状态
-- `leave`: 离开房间
-- `dismiss`: 解散房间（仅房主）
-- `make_room`: 提交房间配置（核心），`music_type=1` 必须同时传 `music_style` + `audios`
-
-**聊天：**
-
-- `send_msg`: 发送消息，需传 `room_id`，`message` 文本
-- `msg_history`: 历史消息，`maxid=0` 取最新
-
-**播放：**
-
-- `sync_player`: 播放同步（获取当前播放进度）
-- `fetch_list`: 播放列表（房间歌单）
-- `reqcmd`: 点歌/播放命令（返回歌曲播放 URL），需传 `hash`
-
-**接口地址：** `/multiplayer/room`
-
-**调用例子：** `/multiplayer/room?action=room_list` `/multiplayer/room?action=room_detail&room_id=xxx` `/multiplayer/room?action=send_msg&room_id=xxx&message=你好`
+查询参数和 JSON body 会在模块入口统一合并，复杂数组（例如 `audios`）建议放入 JSON body。
 
 > ⚠️ **缓存注意事项**：服务端对所有成功响应缓存 2 分钟，缓存键为 hostname + 完整 URL（含 query 参数）。请务必注意：
 >
-> 1. **有副作用的操作**（`create`、`join`、`leave`、`dismiss`、`send_msg`、`heartbeat`、`make_room` 等）**务必在 URL 末尾追加 `timestamp` 参数**使每次请求 URL 不同，否则相同 URL 的重复调用会直接命中缓存而不会真正执行，例如：`/multiplayer/room?action=join&room_id=xxx&timestamp=1691256061923`
-> 2. **参数尽量通过 query 传递**；POST body 参数不参与缓存键，相同 URL 不同 body 的请求会互相污染缓存，导致返回错误数据
+> **有副作用的操作**务必在 URL 末尾追加 `timestamp` 参数使每次请求 URL 不同，否则相同 URL 的重复调用会命中缓存，例如：`/listen/together/room?operation=join&timestamp=1691256061923`。
 
 ### 登录
 
@@ -2785,6 +2756,87 @@ const res = await fetch('/audio/match', {
     "p_next_grade": 4,
     "p_next_grade_point": 6000,
     "servertime": "2026-08-05 23:10:40"
+  }
+}
+```
+
+### 编辑内容黑名单
+
+说明：登录后调用此接口，可以添加/移除内容黑名单中的歌曲或歌手（黑名单内容不会出现在猜你喜欢、每日推荐等推荐场景中）
+
+**必选参数：**
+
+歌曲（`label=song`，默认）：
+
+`hash`: 歌曲 hash（FileHash）
+
+歌手（`label=singer`）：
+
+`singerid`: 歌手 ID
+
+**可选参数：**
+
+`name`: 显示名（歌曲为 `歌手 - 歌名`，歌手为歌手名），仅用于客户端展示，可省略
+
+`mixsongid`: 歌曲 MixSongID（`label=song` 时建议传入，用于客户端展示与跳转）
+
+`label`: 黑名单类型，`song`（歌曲，默认）或 `singer`（歌手）
+
+`isDelete`: 传 `1` 时为从黑名单移除，不传或传 `0` 为添加
+
+`items`: 批量条目（JSON 数组字符串，`[{"k":"...","v":"..."}]` 结构，传入时忽略上述单条参数）
+
+`moduleId`: 场景标识（KG-TID），默认 473（黑名单管理），可选 474（猜你喜欢）、18（每日推荐）、30（主题歌单）
+
+**接口地址：** `/blacklist`
+
+**调用例子：** `/blacklist?hash=B3A52A7A958BF0AED0EBFBA2E9A818B7&mixsongid=32100650&name=周杰伦 - 晴天`（添加歌曲），
+`/blacklist?label=singer&singerid=3520&name=周杰伦`（添加歌手），
+`/blacklist?label=singer&singerid=3520&name=周杰伦&isDelete=1`（移除歌手）
+
+**返回示例：**
+
+```json
+{ "status": 1, "error_code": 0, "data": "操作成功" }
+```
+
+### 获取内容黑名单
+
+说明：登录后调用此接口，可以获取内容黑名单中的歌曲或歌手列表
+
+**可选参数：**
+
+`label`: 黑名单类型，`song`（歌曲，默认）或 `singer`（歌手）
+
+`page`: 页数，默认为 1
+
+`pagesize`: 每页页数，默认为 30，上限 500（条目总数为返回的 `total`，可翻页获取全量）
+
+`moduleId`: 场景标识（KG-TID），默认 473（黑名单管理），可选 474（猜你喜欢）、18（每日推荐）、30（主题歌单）
+
+**接口地址：** `/blacklist/list`
+
+**调用例子：** `/blacklist/list`，`/blacklist/list?label=singer&page=1&pagesize=100`
+
+**返回示例：**
+
+```json
+{
+  "status": 1,
+  "error_code": 0,
+  "data": {
+    "label": "song",
+    "source": 3,
+    "page": 1,
+    "pagesize": 30,
+    "total": 1,
+    "items": [
+      {
+        "song_k": "b3a52a7a958bf0aed0ebfba2e9a818b7",
+        "song_v": "{\"n\":\"周杰伦 - 晴天\",\"m\":\"32100650\",\"t\":\"1786957745\"}",
+        "t": 1786957745
+      }
+    ]
   }
 }
 ```
