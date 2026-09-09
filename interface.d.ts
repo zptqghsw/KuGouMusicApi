@@ -2799,3 +2799,27 @@ export function getModulesDefinitions(modulesPath: string, specificRoute: Record
  * @param config - 请求配置
  */
 export function createRequest(config: RequestConfig): Promise<any>;
+
+/** CSCC lite 播放上报。duration 为真实播放毫秒数；d_sec/diff_sec 为秒。 */
+export interface UserListenReportParams extends CommonParams {
+  event: 'start' | 'end';
+  mixsongid: string | number;
+  uuid?: string;
+  mid?: string;
+  userid?: string | number;
+  token?: string;
+  /** 显式设备名称；未传时复用 dev / KUGOU_API_DEV */
+  device_model?: string;
+  dev?: string;
+  /** 系统版本，默认 9 */
+  system_version?: string | number;
+  screen_width?: number;
+  screen_height?: number;
+  /** 事件中的设备本地 IP，不控制 HTTP 出口或代理；未提供时默认 0.0.0.0 */
+  local_ip?: string;
+  duration?: number;
+  state?: string;
+  d_sec?: number;
+  diff_sec?: number;
+}
+export declare function user_listen_report(params: UserListenReportParams): Promise<ApiResponse>;
