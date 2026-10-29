@@ -2,6 +2,8 @@ FROM node:lts-alpine
 
 RUN apk add --no-cache tini
 
+RUN npm install -g corepack
+
 RUN corepack enable
 
 ENV NODE_ENV=production
